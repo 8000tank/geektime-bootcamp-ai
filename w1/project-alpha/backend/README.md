@@ -89,19 +89,47 @@ backend/
 
 ### 运行测试
 
+#### 使用 SQLite (默认)
+
 ```bash
 uv run pytest
 ```
 
+#### 使用 PostgreSQL (推荐)
+
+PostgreSQL 测试可以验证数据库触发器和其他高级功能：
+
+```bash
+# 1. 创建测试数据库
+psql -U postgres -c "CREATE DATABASE projectalpha_test;"
+
+# 2. 运行迁移
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/projectalpha_test uv run alembic upgrade head
+
+# 3. 运行测试
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/projectalpha_test uv run pytest -v
+
+# 重置测试数据库（可选）
+psql -U postgres -d projectalpha_test -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/projectalpha_test uv run alembic upgrade head
+```
+
+**注意**: PostgreSQL 测试需要先运行 Alembic 迁移来创建数据库触发器。CI 环境会自动使用 PostgreSQL。
+
 ### 代码格式化
 
 ```bash
-uv run black app/
-uv run isort app/
+# 检查格式
+uvx black --check --diff app/ tests/
+uvx isort --check --diff app/ tests/
+
+# 自动格式化
+uvx black app/ tests/
+uvx isort app/ tests/
 ```
 
 ### 类型检查
 
 ```bash
-uv run mypy app/
+uv run --with mypy mypy app/
 ```

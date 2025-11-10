@@ -15,3 +15,12 @@ node_modules/
 # PID files
 .pids.*
 w1/project-alpha/.pids.*
+
+# Test coverage
+coverage.xml
+htmlcov/
+.coverage
+
+# Test databases
+test.db
+*.db

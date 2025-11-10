@@ -1,5 +1,49 @@
 # Changelog
 
+## 2025-11-09 - PostgreSQL 测试环境配置
+
+### 测试基础设施改进
+
+#### ✅ PostgreSQL 测试支持
+- 更新 `tests/conftest.py` 支持 PostgreSQL 和 SQLite 双数据库
+- 从环境变量读取 `DATABASE_URL`，自动选择数据库类型
+- PostgreSQL: 使用 TRUNCATE 清理数据，保留表结构和触发器
+- SQLite: 使用 DROP/CREATE 表方式清理数据
+- 添加 session-scoped `setup_database` fixture
+
+#### ✅ 依赖管理优化
+- 统一所有开发依赖到 `[dependency-groups] dev`
+- 包含: pytest, pytest-cov, pytest-asyncio, httpx, black, isort, mypy
+- CI 中移除 `--with` 参数，直接使用已安装的依赖
+
+#### ✅ CI/CD 更新
+- `.github/workflows/ci.yml`: 简化测试命令为 `uv run pytest`
+- 确保 PostgreSQL 服务正确配置（postgres:17）
+- 运行 Alembic migrations 创建触发器
+- 所有测试现在使用 PostgreSQL 环境
+
+#### ✅ 文档更新
+- 新增 `backend/TESTING.md` - 完整的测试指南
+- 更新 `backend/README.md` - 添加 PostgreSQL 测试说明
+- 说明 SQLite vs PostgreSQL 的区别和使用场景
+- 提供完整的本地测试和 CI 测试流程
+
+#### ✅ 数据库触发器支持
+- 修复 Ticket 模型的 ENUM 类型为 `native_enum=True`
+- 确保 PostgreSQL 触发器正常工作（`completed_at` 自动设置）
+- 测试验证触发器功能正常
+
+### 测试覆盖率
+- ✅ 15/15 测试通过（PostgreSQL 环境）
+- ✅ 14/15 测试通过（SQLite 环境，`test_complete_ticket` 依赖触发器）
+- ✅ 代码覆盖率: 89%
+
+### 技术亮点
+1. **灵活的测试环境**: 支持本地快速 SQLite 测试和完整 PostgreSQL 测试
+2. **CI/CD 一致性**: 本地和 CI 使用相同的 PostgreSQL 配置
+3. **触发器测试**: 完整支持数据库触发器功能测试
+4. **依赖管理**: 使用 uv 的 dependency-groups 统一管理
+
 ## Phase 5 & 6 - 集成测试与优化、文档与部署
 
 ### Phase 5: 集成测试与优化

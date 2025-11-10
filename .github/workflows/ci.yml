@@ -9,7 +9,7 @@ on:
 jobs:
   backend-tests:
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:17
@@ -26,7 +26,7 @@ jobs:
           - 5432:5432
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -34,9 +34,9 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install backend dependencies
         working-directory: ./w1/project-alpha/backend
@@ -50,17 +50,17 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/projectalpha_test
         run: |
-          uv run python -m alembic upgrade head
+          uv run alembic upgrade head
 
       - name: Run backend tests
         working-directory: ./w1/project-alpha/backend
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/projectalpha_test
         run: |
-          uv run --with pytest --with pytest-cov --with pytest-asyncio --with httpx pytest -v --cov=app --cov-report=xml --cov-report=term
+          uv run pytest -v --cov=app --cov-report=xml --cov-report=term
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./w1/project-alpha/backend/coverage.xml
           flags: backend
@@ -68,10 +68,10 @@ jobs:
 
   backend-lint:
     name: Backend Linting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -79,9 +79,9 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Install backend dependencies
         working-directory: ./w1/project-alpha/backend
@@ -108,13 +108,13 @@ jobs:
 
   frontend-lint:
     name: Frontend Linting
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'yarn'
@@ -137,13 +137,13 @@ jobs:
 
   frontend-build:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'yarn'
@@ -161,10 +161,10 @@ jobs:
 
   pre-commit:
     name: Pre-commit Checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -172,12 +172,12 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
+          python-version: '3.13'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: 'yarn'
