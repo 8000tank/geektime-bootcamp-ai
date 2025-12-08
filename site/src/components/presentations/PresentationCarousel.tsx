@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X, Square, Shrink } from 'lucide-react';
 import { getImageUrl } from '../../utils/url';
 
 export interface Slide {
@@ -32,8 +32,13 @@ export default function PresentationCarousel({
 }: PresentationCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isMaximized, setIsMaximized] = useState(false);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const toggleMaximized = useCallback(() => {
+    setIsMaximized((prev) => !prev);
+  }, []);
 
   const goToPrevious = useCallback(() => {
     setCurrentIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
@@ -78,10 +83,16 @@ export default function PresentationCarousel({
         goToPrevious();
       } else if (e.key === 'ArrowRight') {
         goToNext();
-      } else if (e.key === 'Escape' && isFullscreen) {
-        document.exitFullscreen();
+      } else if (e.key === 'Escape') {
+        if (isFullscreen) {
+          document.exitFullscreen();
+        } else if (isMaximized) {
+          setIsMaximized(false);
+        }
       } else if (e.key === 'f' || e.key === 'F') {
         toggleFullscreen();
+      } else if (e.key === 'm' || e.key === 'M') {
+        toggleMaximized();
       } else if (e.key === ' ') {
         e.preventDefault();
         setIsPlaying((prev) => !prev);
@@ -92,7 +103,7 @@ export default function PresentationCarousel({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [goToPrevious, goToNext, isFullscreen, toggleFullscreen]);
+  }, [goToPrevious, goToNext, isFullscreen, isMaximized, toggleFullscreen, toggleMaximized]);
 
   // Auto play
   useEffect(() => {
@@ -118,7 +129,7 @@ export default function PresentationCarousel({
   return (
     <div
       ref={containerRef}
-      className={`presentation-carousel ${isFullscreen ? 'fullscreen' : ''}`}
+      className={`presentation-carousel ${isFullscreen ? 'fullscreen' : ''} ${isMaximized ? 'maximized' : ''}`}
     >
       {/* Header */}
       <div className="carousel-header">
@@ -147,15 +158,29 @@ export default function PresentationCarousel({
           </button>
           <button
             className="control-btn"
+            onClick={toggleMaximized}
+            title={isMaximized ? '退出最大化 (M)' : '最大化 (M)'}
+          >
+            {isMaximized ? <Shrink size={20} /> : <Square size={20} />}
+          </button>
+          <button
+            className="control-btn"
             onClick={toggleFullscreen}
             title={isFullscreen ? '退出全屏 (F)' : '全屏播放 (F)'}
           >
             {isFullscreen ? <Minimize2 size={20} /> : <Maximize2 size={20} />}
           </button>
-          {isFullscreen && (
+          {(isFullscreen || isMaximized) && (
             <button
               className="control-btn close-btn"
-              onClick={() => document.exitFullscreen()}
+              onClick={() => {
+                if (isFullscreen) {
+                  document.exitFullscreen();
+                }
+                if (isMaximized) {
+                  setIsMaximized(false);
+                }
+              }}
               title="退出 (Esc)"
             >
               <X size={20} />
@@ -212,6 +237,7 @@ export default function PresentationCarousel({
       <div className="keyboard-hints">
         <span>← → 切换</span>
         <span>空格 播放/暂停</span>
+        <span>M 最大化</span>
         <span>F 全屏</span>
       </div>
     </div>

@@ -253,3 +253,7 @@ based on @w3/extracted/system-prompts.json and @w3/extracted/tool-definitions.js
 ## 生成 vogels-keynote-nblm slide
 
 帮我使用 vogels-keynote-nblm 生成一个新的 site slides
+
+## 添加 max to page button
+
+for presentations in ./site, please update the component to add a button to make it full in the current browser. We have full screen mode but at some point we just want to take all space of the browser tab. Please implement that.
