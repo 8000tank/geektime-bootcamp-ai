@@ -13,8 +13,26 @@ const presentations = [
     href: getUrl("presentations/intro"),
     thumbnail: getUrl("slides/intro/intro-1.jpg"),
     slideCount: 4,
-    date: "2025-01",
+    date: "2025-12-02",
     category: "课程介绍",
+  },
+  {
+    title: "Werner Vogels - The Renaissance Developer",
+    description: "AWS re:Invent 2024 Keynote - 探讨 AI 时代开发者应具备的五大特质",
+    href: getUrl("presentations/vogels-keynote"),
+    thumbnail: getUrl("slides/vogels-keynote/00-3.jpg"),
+    slideCount: 32,
+    date: "2025-12-07",
+    category: "技术分享",
+  },
+  {
+    title: "AI 时代的文艺复兴开发者",
+    description: "Werner Vogels re:Invent 2024 主题演讲解读 - NotebookLM 生成的中文图解版",
+    href: getUrl("presentations/vogels-keynote-nblm"),
+    thumbnail: getUrl("slides/vogels-keynote-nblm/001.jpg"),
+    slideCount: 14,
+    date: "2025-12-07",
+    category: "行业洞察",
   },
 ];
 ---
@@ -39,10 +57,10 @@ const presentations = [
   >
     <div class="md-container">
       <ScrollReveal client:load>
-        <div class="text-center mb-12">
-          <h2 class="text-h2 font-bold text-ink mb-6">课程演示文稿</h2>
+        <div class="mb-12 text-center">
+          <h2 class="mb-6 font-bold text-h2 text-ink">课程演示文稿</h2>
           <p
-            class="max-w-2xl mx-auto text-body text-slate"
+            class="mx-auto max-w-2xl text-body text-slate"
             style="line-height: 1.6;"
           >
             点击任意演示文稿开始浏览，支持全屏播放、键盘导航
@@ -50,7 +68,7 @@ const presentations = [
         </div>
       </ScrollReveal>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
         {
           presentations.map((pres, idx) => (
             <ScrollReveal delay={idx * 0.1} client:load>
@@ -93,16 +111,16 @@ const presentations = [
     class="md-section"
     style="background-color: var(--md-sky); padding-top: var(--space-12); padding-bottom: var(--space-12);"
   >
-    <div class="md-container text-center">
+    <div class="text-center md-container">
       <ScrollReveal client:load>
-        <h2 class="text-h2 font-bold text-graphite mb-10">想要学习更多？</h2>
+        <h2 class="mb-10 font-bold text-h2 text-graphite">想要学习更多？</h2>
         <p
-          class="text-h3 mb-10 max-w-2xl mx-auto text-body text-graphite"
+          class="mx-auto mb-10 max-w-2xl text-h3 text-body text-graphite"
           style="line-height: 1.5;"
         >
           演示文稿配合课程学习效果更佳
         </p>
-        <div class="md-cta-stack justify-center">
+        <div class="justify-center md-cta-stack">
           <a href={getUrl("curriculum")} class="md-btn">开始学习课程</a>
           <a href={getUrl("materials")} class="md-btn md-btn-secondary">
             查看学习资料

@@ -16,6 +16,20 @@
   flex-direction: column;
 }
 
+.presentation-carousel.maximized {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Header */
 .carousel-header {
   display: flex;
@@ -84,7 +98,8 @@
   padding: 1rem;
 }
 
-.fullscreen .carousel-main {
+.fullscreen .carousel-main,
+.maximized .carousel-main {
   flex: 1;
   min-height: 0;
 }
@@ -107,7 +122,8 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
-.fullscreen .slide-image {
+.fullscreen .slide-image,
+.maximized .slide-image {
   max-height: calc(100vh - 200px);
 }
 

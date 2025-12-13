@@ -236,3 +236,24 @@ based on @w3/extracted/system-prompts.json and @w3/extracted/tool-definitions.js
 ## 添加 slides
 
 仔细阅读 ./site 的代码，为 ./site 添加一个新的菜单：演示文稿，这个页面里面是一个演示文稿的列表。每个演示文档打开后都是一个 carousel，里面有一系列的图片，可以全屏播放。请为这个需求构建一个 react component，然后演示文档（mdx）里面调用这个 component
+
+## 添加 vogels talk slides
+
+使用 ./site/public/slides/vogels-talk 目录下的图片，生成一个 slides，放在 ./site/src/pages/presentations/vogels-talk.mdx 文件中。记得更新 index.astro.
+
+## 帮我构建一个创建 slides 的 skill
+
+帮我构建一个创建 slides 的 claude skill，参考 claude skill 官方文档。skill 创建在 .claude/skills/site-slides 下面，要求：
+
+用户指定一个目录名，比如 test1，在 ./site/public/slides 下找这个目录，如果不存在，报错；如果存在：
+
+1. 如果里面只有一个 pdf 文件，那么使用 pdf2jpg（不存在则使用 cargo install swiss-knife）把 pdf 转换成一系列 001.jpg, 002.jpg, ...。然后按照 2 处理。
+2. 如果里面有一系列 image 文件，则按照已有的 slides 的生成方式生成 ./src/pages/presentations/<slide-name>.mdx，然后更新 ./src/pages/presentations/index.astro。
+
+## 生成 vogels-keynote-nblm slide
+
+帮我使用 vogels-keynote-nblm 生成一个新的 site slides
+
+## 添加 max to page button
+
+for presentations in ./site, please update the component to add a button to make it full in the current browser. We have full screen mode but at some point we just want to take all space of the browser tab. Please implement that.
