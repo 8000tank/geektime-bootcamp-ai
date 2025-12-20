@@ -257,3 +257,11 @@ based on @w3/extracted/system-prompts.json and @w3/extracted/tool-definitions.js
 ## 添加 max to page button
 
 for presentations in ./site, please update the component to add a button to make it full in the current browser. We have full clscreen mode but at some point we just want to take all space of the browser tab. Please implement that.
+
+## 构建 mcp 文档
+
+根据以下内容，在 ./site/src/pages/materials/ 下构建一个 mcp 文档，内容包含原始文档，为 mcp 的完整的学习资料，包括 mcp 的架构，设计，组件，流程等，使用 mermaid 绘制架构，设计，组件，流程等图表并详细说明。然后再介绍 mcp 的用法。
+
+## 构建 mcp slides
+
+根据 ./sites/public/slides/mcp-use-case 下的 pdf，使用 site-slides skill 生成一个 slides，放在 ./site/src/pages/presentations/mcp-use-case.mdx 下。记得更新 index.astro.

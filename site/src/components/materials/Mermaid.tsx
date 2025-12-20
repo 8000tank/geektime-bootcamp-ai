@@ -124,8 +124,6 @@ mermaid.initialize({
   },
 });
 
-let idCounter = 0;
-
 interface MermaidProps {
   chart: string;
 }
@@ -134,9 +132,17 @@ export default function Mermaid({ chart }: MermaidProps) {
   const [svg, setSvg] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const id = useMemo(() => `mermaid-${idCounter++}`, []);
+  const [mounted, setMounted] = useState(false);
+  // Use useId for stable ID generation, or fallback to random for older React
+  const id = useMemo(() => `mermaid-${Math.random().toString(36).substr(2, 9)}`, []);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const renderDiagram = async () => {
       try {
         const { svg } = await mermaid.render(id, chart);
@@ -151,7 +157,7 @@ export default function Mermaid({ chart }: MermaidProps) {
     if (chart) {
       renderDiagram();
     }
-  }, [chart, id]);
+  }, [chart, id, mounted]);
 
   if (error) {
     return (
