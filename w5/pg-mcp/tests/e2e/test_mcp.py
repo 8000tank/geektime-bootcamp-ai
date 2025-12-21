@@ -6,7 +6,7 @@ testing the complete query flow through the MCP protocol.
 
 import pytest
 
-from pg_mcp.server import lifespan, query
+from pg_mcp.server import lifespan, mcp, query
 
 
 class TestMCPServer:
@@ -17,14 +17,14 @@ class TestMCPServer:
         """Test that lifespan context manager initializes all components."""
         # This test verifies that the lifespan context can be entered and exited
         # without errors, which means all components initialize properly.
-        async with lifespan():
+        async with lifespan(mcp):
             # If we reach here, initialization was successful
             pass
 
     @pytest.mark.asyncio
     async def test_query_tool_sql_only(self):
         """Test query tool with return_type='sql'."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT COUNT(*) FROM users",
                 return_type="sql",
@@ -42,7 +42,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_query_tool_with_execution(self):
         """Test query tool with return_type='result'."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Show me all tables",
                 return_type="result",
@@ -61,7 +61,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_query_tool_invalid_return_type(self):
         """Test query tool with invalid return_type."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT 1",
                 return_type="invalid",
@@ -75,7 +75,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_query_tool_empty_question(self):
         """Test query tool with empty question."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="",
                 return_type="result",
@@ -88,7 +88,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_query_tool_with_database_parameter(self):
         """Test query tool with explicit database parameter."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Use the configured database name
             from pg_mcp.config.settings import Settings
 
@@ -107,7 +107,7 @@ class TestMCPServer:
     @pytest.mark.asyncio
     async def test_query_tool_response_format(self):
         """Test that query tool returns properly formatted response."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT 1",
                 return_type="sql",
@@ -160,7 +160,7 @@ class TestMCPServerErrors:
     @pytest.mark.asyncio
     async def test_malformed_question_handling(self):
         """Test handling of malformed questions."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Test with very long question (should be rejected by validation)
             long_question = "SELECT " + ("x " * 10000)
 
@@ -184,7 +184,7 @@ class TestMCPServerLifecycle:
     async def test_multiple_lifespan_contexts(self):
         """Test that multiple lifespan contexts can be created sequentially."""
         # First context
-        async with lifespan():
+        async with lifespan(mcp):
             result1 = await query(
                 question="SELECT 1",
                 return_type="sql",
@@ -192,7 +192,7 @@ class TestMCPServerLifecycle:
             assert "success" in result1
 
         # Second context (after shutdown of first)
-        async with lifespan():
+        async with lifespan(mcp):
             result2 = await query(
                 question="SELECT 2",
                 return_type="sql",
@@ -202,7 +202,7 @@ class TestMCPServerLifecycle:
     @pytest.mark.asyncio
     async def test_nested_queries_in_lifespan(self):
         """Test multiple queries within single lifespan context."""
-        async with lifespan():
+        async with lifespan(mcp):
             # First query
             result1 = await query(
                 question="SELECT 1 as first",
@@ -222,7 +222,7 @@ class TestMCPServerLifecycle:
 @pytest.fixture
 async def initialized_server():
     """Fixture that provides an initialized server context."""
-    async with lifespan():
+    async with lifespan(mcp):
         yield
 
 
@@ -257,7 +257,7 @@ async def test_end_to_end_query_flow():
     6. Result validation
     7. Response formatting
     """
-    async with lifespan():
+    async with lifespan(mcp):
         # Test SQL generation
         sql_result = await query(
             question="How many tables are in the database?",
@@ -288,7 +288,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_natural_language_to_sql_flow(self):
         """Test complete natural language to SQL conversion flow."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Test with natural language question
             result = await query(
                 question="How many tables are in the public schema?",
@@ -308,7 +308,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_query_execution_with_results(self):
         """Test query execution returns actual data."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="List all PostgreSQL system catalogs",
                 return_type="result",
@@ -333,7 +333,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_confidence_scoring(self):
         """Test that confidence scores are calculated."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Count the number of tables",
                 return_type="result",
@@ -349,7 +349,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_token_usage_tracking(self):
         """Test that token usage is tracked."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="What tables exist?",
                 return_type="result",
@@ -365,7 +365,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_security_validation_enforcement(self):
         """Test that security validation prevents dangerous queries."""
-        async with lifespan():
+        async with lifespan(mcp):
             dangerous_operations = [
                 "DROP TABLE users",
                 "DELETE FROM important_data",
@@ -389,7 +389,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_complex_query_generation(self):
         """Test generation of complex SQL queries."""
-        async with lifespan():
+        async with lifespan(mcp):
             complex_questions = [
                 "What are the top 5 largest tables by row count?",
                 "Show me all tables with their column counts",
@@ -415,7 +415,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_schema_context_usage(self):
         """Test that schema context is used in SQL generation."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Ask about specific tables/columns
             result = await query(
                 question="Describe the structure of pg_tables",
@@ -434,7 +434,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_error_recovery(self):
         """Test error recovery and handling."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Test with potentially problematic input
             problematic_inputs = [
                 "",  # Empty
@@ -461,7 +461,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_retry_mechanism(self):
         """Test that retry mechanism works for transient failures."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Use a question that might need retry
             result = await query(
                 question="This is an ambiguous query that might need clarification",
@@ -476,7 +476,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_metrics_collection(self):
         """Test that metrics are collected during operations."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Execute a query to generate metrics
             result = await query(
                 question="SELECT 1",
@@ -493,7 +493,7 @@ class TestMCPServerIntegration:
         """Test handling of multiple concurrent queries."""
         import asyncio
 
-        async with lifespan():
+        async with lifespan(mcp):
             # Execute multiple queries concurrently
             queries_to_run = [
                 query(question=f"SELECT {i} as value", return_type="sql") for i in range(5)
@@ -512,7 +512,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_database_parameter_override(self):
         """Test that database parameter can override default."""
-        async with lifespan():
+        async with lifespan(mcp):
             from pg_mcp.config.settings import Settings
 
             settings = Settings()
@@ -533,7 +533,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_readonly_enforcement(self):
         """Test that read-only mode is enforced."""
-        async with lifespan():
+        async with lifespan(mcp):
             write_operations = [
                 "INSERT INTO test VALUES (1)",
                 "UPDATE test SET value = 1",
@@ -556,7 +556,7 @@ class TestMCPServerIntegration:
     @pytest.mark.integration
     async def test_result_validation_feedback(self):
         """Test that result validation provides feedback."""
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Count all database tables",
                 return_type="result",

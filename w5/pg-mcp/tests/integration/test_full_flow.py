@@ -6,7 +6,7 @@ query flow through all components of the system.
 
 import pytest
 
-from pg_mcp.server import lifespan, query
+from pg_mcp.server import lifespan, mcp, query
 
 
 class TestFullQueryFlow:
@@ -23,7 +23,7 @@ class TestFullQueryFlow:
         4. Query execution
         5. Result formatting
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT 1 as test_value",
                 return_type="result",
@@ -52,7 +52,7 @@ class TestFullQueryFlow:
         3. Confidence score is calculated
         4. Validation feedback is included
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Count all tables in the database",
                 return_type="result",
@@ -82,7 +82,7 @@ class TestFullQueryFlow:
         3. Only SQL is returned
         4. No data field is present
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Show me all tables in the current schema",
                 return_type="sql",
@@ -111,7 +111,7 @@ class TestFullQueryFlow:
         2. Query executes against correct database
         3. Schema from correct database is used
         """
-        async with lifespan():
+        async with lifespan(mcp):
             # Get configured database name
             from pg_mcp.config.settings import Settings
 
@@ -141,7 +141,7 @@ class TestFullQueryFlow:
         2. Dangerous operations are blocked
         3. Appropriate error is returned
         """
-        async with lifespan():
+        async with lifespan(mcp):
             dangerous_queries = [
                 "DROP TABLE users",
                 "DELETE FROM users WHERE id = 1",
@@ -178,7 +178,7 @@ class TestFullQueryFlow:
         3. Max retries are respected
         4. Appropriate error is returned on failure
         """
-        async with lifespan():
+        async with lifespan(mcp):
             # Use a question that might generate invalid SQL
             result = await query(
                 question="This is not a valid query request at all, just random words",
@@ -203,7 +203,7 @@ class TestFullQueryFlow:
         2. Security validation blocks them
         3. Appropriate error is returned
         """
-        async with lifespan():
+        async with lifespan(mcp):
             blocked_function_queries = [
                 "SELECT pg_sleep(1000)",
                 "SELECT pg_read_file('/etc/passwd')",
@@ -233,7 +233,7 @@ class TestFullQueryFlow:
         2. Timeout error is returned
         3. Resources are properly cleaned up
         """
-        async with lifespan():
+        async with lifespan(mcp):
             # Try to create a query that would timeout
             # Note: pg_sleep might be blocked, so this may not actually timeout
             result = await query(
@@ -254,7 +254,7 @@ class TestFullQueryFlow:
         2. Multiple queries use cached schema
         3. No redundant schema fetches
         """
-        async with lifespan():
+        async with lifespan(mcp):
             # Execute multiple queries
             for i in range(3):
                 result = await query(
@@ -275,7 +275,7 @@ class TestFullQueryFlow:
         2. Appropriate error is returned
         3. Server remains stable
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT 1",
                 database="nonexistent_database_12345",
@@ -296,7 +296,7 @@ class TestFullQueryFlow:
         2. Response structure is maintained
         3. Row count is zero
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT * FROM pg_tables WHERE tablename = 'nonexistent_table_xyz'",
                 return_type="result",
@@ -320,7 +320,7 @@ class TestFullQueryFlow:
         2. Row limits are enforced
         3. No memory exhaustion
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="SELECT generate_series(1, 100) as num",
                 return_type="result",
@@ -349,7 +349,7 @@ class TestFullQueryFlow:
         """
         import asyncio
 
-        async with lifespan():
+        async with lifespan(mcp):
             # Execute multiple queries concurrently
             queries = [query(question=f"SELECT {i} as value", return_type="sql") for i in range(5)]
 
@@ -372,7 +372,7 @@ class TestFullQueryFlow:
         2. Tokens are included in response
         3. Value is reasonable
         """
-        async with lifespan():
+        async with lifespan(mcp):
             result = await query(
                 question="Count all tables",
                 return_type="result",
@@ -392,7 +392,7 @@ class TestIntegrationErrorScenarios:
     @pytest.mark.asyncio
     async def test_malformed_input_handling(self):
         """Test handling of malformed input."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Test with extremely long question
             long_question = "x" * 50000
 
@@ -409,7 +409,7 @@ class TestIntegrationErrorScenarios:
     @pytest.mark.asyncio
     async def test_special_characters_in_query(self):
         """Test handling of special characters."""
-        async with lifespan():
+        async with lifespan(mcp):
             special_queries = [
                 "SELECT 'test'; DROP TABLE users;--",
                 "SELECT * FROM users WHERE name = '' OR '1'='1",
@@ -428,7 +428,7 @@ class TestIntegrationErrorScenarios:
     @pytest.mark.asyncio
     async def test_unicode_handling(self):
         """Test handling of unicode characters."""
-        async with lifespan():
+        async with lifespan(mcp):
             unicode_queries = [
                 "SELECT '你好世界' as greeting",
                 "SELECT 'émojis: 🎉🎊' as message",
@@ -453,7 +453,7 @@ class TestIntegrationPerformance:
         """Test that queries complete in reasonable time."""
         import time
 
-        async with lifespan():
+        async with lifespan(mcp):
             start = time.time()
 
             result = await query(
@@ -472,7 +472,7 @@ class TestIntegrationPerformance:
     @pytest.mark.asyncio
     async def test_connection_pool_efficiency(self):
         """Test connection pool reuse efficiency."""
-        async with lifespan():
+        async with lifespan(mcp):
             # Execute multiple queries to test pool reuse
             for i in range(10):
                 result = await query(

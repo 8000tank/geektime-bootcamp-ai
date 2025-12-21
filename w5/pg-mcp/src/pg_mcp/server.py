@@ -39,7 +39,7 @@ _rate_limiter: MultiRateLimiter | None = None
 
 
 @asynccontextmanager
-async def lifespan() -> AsyncIterator[None]:
+async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-arg]
     """Lifespan context manager for server initialization and cleanup.
 
     This function manages the complete lifecycle of the MCP server:
@@ -238,8 +238,8 @@ async def lifespan() -> AsyncIterator[None]:
         logger.info("PostgreSQL MCP Server shutdown complete")
 
 
-# Create FastMCP server instance
-mcp = FastMCP("pg-mcp")
+# Create FastMCP server instance with lifespan
+mcp = FastMCP("pg-mcp", lifespan=lifespan)
 
 
 @mcp.tool()
@@ -366,25 +366,8 @@ async def query(
         }
 
 
-async def run_server() -> None:
-    """Run the MCP server using stdio transport.
-
-    This is the main entry point for running the server. It uses stdio
-    transport to communicate with MCP clients and manages the complete
-    server lifecycle through the lifespan context manager.
-
-    Example:
-        >>> import asyncio
-        >>> asyncio.run(run_server())
-    """
-    async with lifespan():
-        # Run the FastMCP server
-        # FastMCP uses stdio by default
-        await mcp.run()  # type: ignore[func-returns-value]
-
-
 if __name__ == "__main__":
     """Run the server when executed directly."""
-    import asyncio
+    import anyio
 
-    asyncio.run(run_server())
+    anyio.run(mcp.run_stdio_async)

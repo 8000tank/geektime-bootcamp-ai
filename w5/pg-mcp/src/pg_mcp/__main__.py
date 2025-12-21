@@ -4,10 +4,9 @@ This module provides the CLI entry point for running the MCP server
 using FastMCP with stdio transport.
 """
 
-import asyncio
-import sys
+import anyio
 
-from pg_mcp.server import run_server
+from pg_mcp.server import mcp
 
 
 def main() -> None:
@@ -31,14 +30,7 @@ def main() -> None:
         Run with environment variables:
         >>> DATABASE_HOST=localhost DATABASE_NAME=mydb python -m pg_mcp
     """
-    try:
-        asyncio.run(run_server())
-    except KeyboardInterrupt:
-        print("\nServer stopped by user")
-        sys.exit(0)
-    except Exception as e:
-        print(f"Fatal error: {e}", file=sys.stderr)
-        sys.exit(1)
+    anyio.run(mcp.run_stdio_async)
 
 
 if __name__ == "__main__":
