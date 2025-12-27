@@ -142,7 +142,7 @@ yarn preview               # 预览构建结果
 - **Node.js**: 使用yarn管理前端依赖
 - **数据库**: PostgreSQL（w1, w2）
 - **Rust**: 1.90+（w3）
-- **环境**: Win11下的WSL2，conda虚拟环境"words_312"
+- **环境**: Win11下的WSL2，conda虚拟环境"cursor_312"
 
 ## API文档
 

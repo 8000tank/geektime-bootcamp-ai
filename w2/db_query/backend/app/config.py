@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # Metadata cache configuration
     metadata_cache_hours: int = 24
 
+    # Rate limiting configuration
+    rate_limit_requests_per_minute: int = 60
+    rate_limit_requests_per_hour: int = 1000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

@@ -1,0 +1,1 @@
+请深入思考，think harder，帮我生成一个 Git 提交信息，使用conventional commits 格式，简体中文。注意：只是生成一个提交信息，不要执行提交。

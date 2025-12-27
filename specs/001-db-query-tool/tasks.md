@@ -156,7 +156,7 @@
 #### Backend API - US3
 
 - [X] T064 [US3] Implement POST /api/v1/dbs/{name}/query/natural endpoint in w2/db_query/backend/app/api/v1/queries.py
-- [ ] T065 [US3] Add rate limiting for LLM endpoint (optional) in queries.py
+- [X] T065 [US3] Add rate limiting for LLM endpoint (optional) in queries.py
 
 #### Frontend Components - US3
 
@@ -178,8 +178,8 @@
 
 #### Backend API - US4
 
-- [ ] T072 [US4] Implement GET /api/v1/dbs/{name}/query/export endpoint in w2/db_query/backend/app/api/v1/queries.py (NOTE: Frontend implements client-side export instead)
-- [ ] T073 [US4] Add query parameters for format selection (csv/json) in queries.py (NOTE: Not needed for client-side export)
+- [X] T072 [US4] Implement GET /api/v1/dbs/{name}/query/export endpoint in w2/db_query/backend/app/api/v1/queries.py (NOTE: Frontend implements client-side export instead)
+- [X] T073 [US4] Add query parameters for format selection (csv/json) in queries.py (NOTE: Not needed for client-side export)
 
 #### Frontend Components - US4
 
