@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import prism from 'react-syntax-highlighter/dist/cjs/styles/prism/prism';
 
@@ -21,6 +21,12 @@ export default function ExampleCode({
 }: ExampleCodeProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [copied, setCopied] = useState(false);
+  // Fix hydration mismatch: only render syntax highlighter on client
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Get preview text (first N lines)
   const lines = code.split('\n');
@@ -104,31 +110,47 @@ export default function ExampleCode({
           style={{ position: 'relative', cursor: 'pointer' }}
           onClick={() => setIsExpanded(true)}
         >
-          <SyntaxHighlighter
-            language={language}
-            style={prism}
-            showLineNumbers={showLineNumbers}
-            customStyle={{
-              margin: 0,
-              borderRadius: 0,
-              padding: 'var(--space-5)',
-              backgroundColor: 'var(--md-fog)',
-            }}
-            lineNumberStyle={{
-              minWidth: '2.5em',
-              paddingRight: '1em',
-              color: 'var(--md-slate)',
-              userSelect: 'none',
-            }}
-            codeTagProps={{
-              style: {
+          {mounted ? (
+            <SyntaxHighlighter
+              language={language}
+              style={prism}
+              showLineNumbers={showLineNumbers}
+              customStyle={{
+                margin: 0,
+                borderRadius: 0,
+                padding: 'var(--space-5)',
+                backgroundColor: 'var(--md-fog)',
+              }}
+              lineNumberStyle={{
+                minWidth: '2.5em',
+                paddingRight: '1em',
+                color: 'var(--md-slate)',
+                userSelect: 'none',
+              }}
+              codeTagProps={{
+                style: {
+                  fontSize: '18px',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                }
+              }}
+            >
+              {previewCode}
+            </SyntaxHighlighter>
+          ) : (
+            <pre
+              style={{
+                margin: 0,
+                borderRadius: 0,
+                padding: 'var(--space-5)',
+                backgroundColor: 'var(--md-fog)',
                 fontSize: '18px',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              }
-            }}
-          >
-            {previewCode}
-          </SyntaxHighlighter>
+                overflow: 'auto',
+              }}
+            >
+              <code>{previewCode}</code>
+            </pre>
+          )}
           {hasMore && (
             <div
               style={{
@@ -219,31 +241,47 @@ export default function ExampleCode({
               </>
             )}
           </button>
-          <SyntaxHighlighter
-            language={language}
-            style={prism}
-            showLineNumbers={showLineNumbers}
-            customStyle={{
-              margin: 0,
-              borderRadius: 0,
-              padding: 'var(--space-5)',
-              backgroundColor: 'var(--md-fog)',
-            }}
-            lineNumberStyle={{
-              minWidth: '2.5em',
-              paddingRight: '1em',
-              color: 'var(--md-slate)',
-              userSelect: 'none',
-            }}
-            codeTagProps={{
-              style: {
+          {mounted ? (
+            <SyntaxHighlighter
+              language={language}
+              style={prism}
+              showLineNumbers={showLineNumbers}
+              customStyle={{
+                margin: 0,
+                borderRadius: 0,
+                padding: 'var(--space-5)',
+                backgroundColor: 'var(--md-fog)',
+              }}
+              lineNumberStyle={{
+                minWidth: '2.5em',
+                paddingRight: '1em',
+                color: 'var(--md-slate)',
+                userSelect: 'none',
+              }}
+              codeTagProps={{
+                style: {
+                  fontSize: '18px',
+                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                }
+              }}
+            >
+              {code}
+            </SyntaxHighlighter>
+          ) : (
+            <pre
+              style={{
+                margin: 0,
+                borderRadius: 0,
+                padding: 'var(--space-5)',
+                backgroundColor: 'var(--md-fog)',
                 fontSize: '18px',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              }
-            }}
-          >
-            {code}
-          </SyntaxHighlighter>
+                overflow: 'auto',
+              }}
+            >
+              <code>{code}</code>
+            </pre>
+          )}
         </div>
       )}
     </div>
