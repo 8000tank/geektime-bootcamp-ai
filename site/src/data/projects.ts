@@ -770,11 +770,12 @@ class TestSQLValidator:
   {
     id: 'project-3',
     number: 3,
-    title: 'MCP Server 开发：知识库助手',
-    subtitle: '打造个人 AI 知识库',
+    title: 'pg-mcp',
+    subtitle: 'postgres mcp 可以用自然语言查询数据',
     difficulty: 4,
     estimatedHours: 8,
     weekNumber: 5,
+    previewImage: 'projects/project-3/preview.jpg',
     objectives: [
       '深入理解 MCP 协议',
       '开发自定义 MCP Server',
@@ -833,6 +834,114 @@ class TestSQLValidator:
   {
     id: 'project-4',
     number: 4,
+    title: 'opencode prompt 可视化',
+    subtitle: '通过 opencode plugin 获取 agent/llm 交互日志，然后将其可视化了解 agent 如何工作',
+    difficulty: 3,
+    estimatedHours: 8,
+    weekNumber: 6,
+    previewImage: 'projects/project-4/preview.jpg',
+    objectives: [
+      '理解 AI Agent 的内部工作机制',
+      '学习如何通过 plugin 扩展 AI 工具',
+      '掌握 React 19 和现代前端开发',
+      '实践数据可视化技术',
+    ],
+    techStack: [
+      'TypeScript',
+      'React 19',
+      'Vite 7',
+      'Lucide React',
+      'react-markdown',
+      'react-syntax-highlighter',
+    ],
+    architecture: `graph TB
+    subgraph "数据源"
+      A[opencode plugin]
+      B[Agent 日志文件]
+    end
+
+    subgraph "可视化应用"
+      C[日志解析器]
+      D[对话视图]
+      E[工具调用视图]
+      F[System Prompt 视图]
+    end
+
+    subgraph "UI 组件"
+      G[TurnCard]
+      H[MessageCard]
+      I[PartRenderer]
+      J[MarkdownRenderer]
+    end
+
+    A --> B
+    B --> C
+    C --> D
+    C --> E
+    C --> F
+    D --> G
+    G --> H
+    H --> I
+    I --> J`,
+    implementationSteps: [
+      {
+        stepNumber: 1,
+        title: '设置 opencode plugin',
+        description: '配置 opencode 导出 agent 交互日志',
+      },
+      {
+        stepNumber: 2,
+        title: '实现日志解析器',
+        description: '解析 JSON 格式的对话日志，提取 turns、messages、tool calls 等信息',
+        codeExample: `interface Turn {
+  input: Message[];
+  output: Message[];
+  metadata?: {
+    model?: string;
+    tokens?: { input: number; output: number };
+  };
+}
+
+function parseConversation(data: unknown): Turn[] {
+  // 解析和验证日志数据结构
+}`,
+      },
+      {
+        stepNumber: 3,
+        title: '构建对话可视化组件',
+        description: '使用 React 组件展示用户输入、AI 响应、工具调用等',
+        codeExample: `function TurnCard({ turn, index }: { turn: Turn; index: number }) {
+  return (
+    <div className="turn-card">
+      <InputSection messages={turn.input} />
+      <OutputSection messages={turn.output} />
+      <MetadataBar metadata={turn.metadata} />
+    </div>
+  );
+}`,
+      },
+      {
+        stepNumber: 4,
+        title: '实现 Markdown 和代码渲染',
+        description: '使用 react-markdown 和 syntax highlighter 美化输出',
+      },
+      {
+        stepNumber: 5,
+        title: '添加导航和筛选功能',
+        description: '支持按 turn 导航、筛选工具调用、查看 system prompt 等',
+      },
+    ],
+    learningPoints: [
+      '深入理解 AI Agent 的对话结构',
+      'React 19 新特性和最佳实践',
+      'TypeScript 严格类型设计',
+      'Markdown 渲染和代码高亮',
+      '现代前端工具链（Vite 7）',
+    ],
+  },
+  {
+    id: 'project-5',
+    number: 5,
     title: 'Code Review Agent',
     subtitle: '自动化代码审查助手',
     difficulty: 4,
@@ -905,8 +1014,8 @@ class CodeReviewAgent:
     ],
   },
   {
-    id: 'project-5',
-    number: 5,
+    id: 'project-6',
+    number: 6,
     title: '全栈 AI 应用：智能文档助手',
     subtitle: '端到端开发实践',
     difficulty: 5,
