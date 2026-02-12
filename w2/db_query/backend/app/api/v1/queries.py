@@ -19,7 +19,6 @@ from app.services.query import get_query_history
 from app.services.sql_validator import SqlValidationError
 from app.services.nl2sql import nl2sql_service
 from app.services.metadata import get_cached_metadata
-from app.dependencies import rate_limit_dependency
 
 router = APIRouter(prefix="/api/v1/dbs", tags=["queries"])
 
@@ -130,7 +129,6 @@ async def natural_language_to_sql(
     name: str,
     input_data: NaturalLanguageInput,
     session: Session = Depends(get_session),
-    rate_limit_check: bool = Depends(rate_limit_dependency),
 ) -> GeneratedSqlResponse:
     """
     Convert natural language to SQL query using OpenAI.
