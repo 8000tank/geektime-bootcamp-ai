@@ -7,8 +7,11 @@ from pathlib import Path
 class Settings(BaseSettings):
     """Application settings."""
 
-    # OpenAI API
-    openai_api_key: str
+    # LLM API (OpenAI 或兼容 API，如 DeepSeek)
+    openai_api_key: str  # 兼容：可用 DeepSeek 等服务的 API Key
+    # 可选：自定义 base_url，使用 DeepSeek 等兼容服务时设置
+    llm_base_url: str | None = None  # 如 https://api.deepseek.com
+    llm_model: str | None = None  # 如 deepseek-chat，不设置时默认 gpt-4o-mini
 
     # Data directory
     db_query_data_dir: str = str(Path.home() / ".db_query")

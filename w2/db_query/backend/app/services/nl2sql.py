@@ -1,4 +1,4 @@
-"""Natural Language to SQL conversion service using OpenAI."""
+"""Natural Language to SQL conversion service using OpenAI-compatible LLM API."""
 
 from openai import AsyncOpenAI
 from app.config import settings
@@ -9,12 +9,15 @@ logger = logging.getLogger(__name__)
 
 
 class NaturalLanguageToSQLService:
-    """Service for converting natural language queries to SQL using OpenAI."""
+    """Service for converting natural language queries to SQL using LLM (OpenAI/DeepSeek 等)."""
 
     def __init__(self):
-        """Initialize OpenAI client."""
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key)
-        self.model = "gpt-4o-mini"  # Cost-effective model for SQL generation
+        """Initialize LLM client (OpenAI SDK 兼容 DeepSeek、通义等)."""
+        client_kwargs: dict = {"api_key": settings.openai_api_key}
+        if settings.llm_base_url:
+            client_kwargs["base_url"] = settings.llm_base_url
+        self.client = AsyncOpenAI(**client_kwargs)
+        self.model = settings.llm_model or "gpt-4o-mini"
 
     def _build_prompt(
         self, user_prompt: str, metadata: dict, db_type: DatabaseType = DatabaseType.POSTGRESQL
