@@ -64,7 +64,8 @@ class ResultValidator:
         sql: str,
         results: list[dict[str, Any]],
         row_count: int,
-    ) -> ResultValidationResult:
+        return_tokens: bool = False,
+    ) -> ResultValidationResult | tuple[ResultValidationResult, int | None]:
         """Validate query results against the user's original question.
 
         This method sends the question, SQL, and results to OpenAI's API
@@ -78,8 +79,9 @@ class ResultValidator:
             row_count: Total number of rows in the complete result set.
 
         Returns:
-            ResultValidationResult: Validation result including confidence score,
-                explanation, and optional suggestions.
+            ResultValidationResult | tuple[ResultValidationResult, int | None]:
+            Validation result; if `return_tokens=True`, returns
+            `(validation_result, tokens_used)`.
 
         Raises:
             LLMError: If validation fails or response is invalid.
@@ -98,12 +100,15 @@ class ResultValidator:
         """
         # If validation is disabled, return high confidence result
         if not self.validation_config.enabled:
-            return ResultValidationResult(
+            result = ResultValidationResult(
                 confidence=100,
                 explanation="Validation is disabled in configuration",
                 suggestion=None,
                 is_acceptable=True,
             )
+            if return_tokens:
+                return result, None
+            return result
 
         # Sample results to avoid sending too much data to LLM
         sample_results = results[: self.validation_config.sample_rows]
@@ -148,12 +153,15 @@ class ResultValidator:
                 result_dict = json.loads(content)
             except json.JSONDecodeError as e:
                 # If JSON parsing fails, return moderate confidence with error explanation
-                return ResultValidationResult(
+                result = ResultValidationResult(
                     confidence=60,
                     explanation=f"Validation response parsing failed: {e!s}",
                     suggestion="Unable to parse LLM response, manual verification recommended",
                     is_acceptable=False,
                 )
+                if return_tokens:
+                    return result, response.usage.total_tokens if response.usage else None
+                return result
 
             # Extract fields from response
             confidence = result_dict.get("confidence", 50)
@@ -171,12 +179,15 @@ class ResultValidator:
             # Determine if result is acceptable based on threshold
             is_acceptable = confidence >= self.validation_config.confidence_threshold
 
-            return ResultValidationResult(
+            result = ResultValidationResult(
                 confidence=confidence,
                 explanation=explanation,
                 suggestion=suggestion,
                 is_acceptable=is_acceptable,
             )
+            if return_tokens:
+                return result, response.usage.total_tokens if response.usage else None
+            return result
 
         except TimeoutError as e:
             timeout = self.validation_config.timeout_seconds
@@ -186,12 +197,15 @@ class ResultValidator:
             ) from e
         except json.JSONDecodeError as e:
             # This should be caught above, but kept for safety
-            return ResultValidationResult(
+            result = ResultValidationResult(
                 confidence=60,
                 explanation=f"JSON parsing error: {e!s}",
                 suggestion=None,
                 is_acceptable=False,
             )
+            if return_tokens:
+                return result, None
+            return result
         except LLMError:
             # Re-raise LLM errors as-is
             raise

@@ -4,6 +4,7 @@ This module tests the orchestrator's coordination of the query pipeline,
 including retry logic, error handling, and integration with all components.
 """
 
+from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -12,6 +13,7 @@ from pg_mcp.config.settings import ResilienceConfig, ValidationConfig
 from pg_mcp.models.errors import (
     DatabaseError,
     LLMError,
+    RateLimitExceededError,
     SecurityViolationError,
     SQLParseError,
 )
@@ -314,6 +316,82 @@ class TestSQLGenerationWithRetry:
         assert "unexpectedly" in str(exc_info.value).lower()
         assert orchestrator.circuit_breaker.failure_count == 1
 
+    @pytest.mark.asyncio
+    async def test_generate_sql_retry_uses_backoff_delay(
+        self, mock_schema: DatabaseSchema, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Retry path should sleep based on retry_delay and backoff_factor."""
+        mock_generator = AsyncMock()
+        mock_generator.generate.side_effect = [
+            "SELECT * FROM user;",
+            "SELECT * FROM users;",
+        ]
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.side_effect = [
+            SQLParseError('relation "user" does not exist'),
+            None,
+        ]
+
+        sleep_calls: list[float] = []
+
+        async def _fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
+        monkeypatch.setattr("pg_mcp.services.orchestrator.asyncio.sleep", _fake_sleep)
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            result_validator=MagicMock(),
+            schema_cache=MagicMock(),
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(max_retries=2, retry_delay=0.2, backoff_factor=3.0),
+            validation_config=ValidationConfig(),
+            sql_executor=MagicMock(),
+        )
+
+        sql, validation_result, _tokens = await orchestrator._generate_sql_with_retry(
+            question="Get all users",
+            schema=mock_schema,
+            request_id="test-123",
+        )
+
+        assert sql == "SELECT * FROM users;"
+        assert validation_result.is_valid is True
+        assert sleep_calls == [0.2]
+
+    @pytest.mark.asyncio
+    async def test_generate_sql_rate_limited(self, mock_schema: DatabaseSchema) -> None:
+        """Should raise RateLimitExceededError when llm limiter times out."""
+
+        class _FailingLimiter:
+            @asynccontextmanager
+            async def for_llm(self, **_kwargs):
+                raise TimeoutError("rate limited")
+                yield
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=AsyncMock(),
+            sql_validator=MagicMock(),
+            result_validator=MagicMock(),
+            schema_cache=MagicMock(),
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(max_retries=1),
+            validation_config=ValidationConfig(),
+            sql_executor=MagicMock(),
+            rate_limiter=_FailingLimiter(),
+        )
+
+        with pytest.raises(RateLimitExceededError) as exc_info:
+            await orchestrator._generate_sql_with_retry(
+                question="Get all users",
+                schema=mock_schema,
+                request_id="test-123",
+            )
+
+        assert "rate limit" in str(exc_info.value).lower()
+
 
 class TestResultValidation:
     """Test result validation logic."""
@@ -535,6 +613,94 @@ class TestExecuteQueryFlow:
         assert response.data.columns == ["id", "name"]
         assert response.confidence == 90
         assert response.error is None
+
+    @pytest.mark.asyncio
+    async def test_execute_query_uses_database_specific_executor(
+        self, mock_schema: DatabaseSchema
+    ) -> None:
+        """Should execute SQL with the executor mapped to the resolved database."""
+        mock_generator = AsyncMock()
+        mock_generator.generate.return_value = "SELECT 1;"
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.return_value = None
+
+        executor_db1 = AsyncMock()
+        executor_db1.execute.return_value = ([{"value": 1}], 1)
+        executor_db2 = AsyncMock()
+        executor_db2.execute.return_value = ([{"value": 2}], 1)
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = mock_schema
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            result_validator=MagicMock(),
+            schema_cache=mock_cache,
+            pools={"db1": MagicMock(), "db2": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(enabled=False),
+            sql_executors={"db1": executor_db1, "db2": executor_db2},
+        )
+
+        request = QueryRequest(
+            question="Get value",
+            database="db2",
+            return_type=ReturnType.RESULT,
+        )
+        response = await orchestrator.execute_query(request)
+
+        assert response.success is True
+        executor_db1.execute.assert_not_called()
+        executor_db2.execute.assert_called_once_with("SELECT 1;")
+
+    @pytest.mark.asyncio
+    async def test_execute_query_aggregates_generation_and_validation_tokens(
+        self, mock_schema: DatabaseSchema
+    ) -> None:
+        """Should aggregate tokens from SQL generation and result validation."""
+        mock_generator = AsyncMock()
+        mock_generator.generate.return_value = ("SELECT 1;", 40)
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.return_value = None
+
+        mock_executor = AsyncMock()
+        mock_executor.execute.return_value = ([{"value": 1}], 1)
+
+        validation_result = ResultValidationResult(
+            confidence=88,
+            explanation="Looks good",
+            suggestion=None,
+            is_acceptable=True,
+        )
+        mock_result_validator = AsyncMock()
+        mock_result_validator.validate.return_value = (validation_result, 20)
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = mock_schema
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            result_validator=mock_result_validator,
+            schema_cache=mock_cache,
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(enabled=True),
+            sql_executor=mock_executor,
+        )
+
+        request = QueryRequest(
+            question="Get value",
+            database="test_db",
+            return_type=ReturnType.RESULT,
+        )
+        response = await orchestrator.execute_query(request)
+
+        assert response.success is True
+        assert response.tokens_used == 60
 
     @pytest.mark.asyncio
     async def test_execute_query_schema_not_cached(self) -> None:

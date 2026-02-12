@@ -4,6 +4,9 @@ This module provides E2E tests for the FastMCP server implementation,
 testing the complete query flow through the MCP protocol.
 """
 
+from contextlib import asynccontextmanager
+from unittest.mock import AsyncMock
+
 import pytest
 
 from pg_mcp.server import lifespan, mcp, query
@@ -175,6 +178,50 @@ class TestMCPServerErrors:
             if not result["success"]:
                 assert "error" in result
                 assert "code" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_query_rate_limited_error_structure(self):
+        """Test that query returns RATE_LIMITED with retry hint when limiter is exhausted."""
+        import pg_mcp.server as server_module
+
+        class _AlwaysTimeoutLimiter:
+            @asynccontextmanager
+            async def for_queries(self, **_kwargs):
+                raise TimeoutError("rate limited")
+                yield
+
+        original_orchestrator = server_module._orchestrator
+        original_rate_limiter = server_module._rate_limiter
+        server_module._orchestrator = AsyncMock()
+        server_module._rate_limiter = _AlwaysTimeoutLimiter()
+
+        try:
+            result = await query(question="SELECT 1", return_type="sql")
+            assert result["success"] is False
+            assert "error" in result
+            assert result["error"]["code"] == "RATE_LIMITED"
+            assert result["error"]["details"]["retry_after_seconds"] == 1
+            assert result["tokens_used"] == 0
+        finally:
+            server_module._orchestrator = original_orchestrator
+            server_module._rate_limiter = original_rate_limiter
+
+    @pytest.mark.asyncio
+    async def test_error_responses_always_include_tokens_used(self):
+        """Early validation errors should still include tokens_used for schema stability."""
+        import pg_mcp.server as server_module
+
+        original_orchestrator = server_module._orchestrator
+        server_module._orchestrator = AsyncMock()
+
+        try:
+            result = await query(question="SELECT 1", return_type="invalid")
+            assert result["success"] is False
+            assert result["error"]["code"] == "INVALID_PARAMETER"
+            assert "tokens_used" in result
+            assert result["tokens_used"] == 0
+        finally:
+            server_module._orchestrator = original_orchestrator
 
 
 class TestMCPServerLifecycle:

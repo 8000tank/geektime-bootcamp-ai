@@ -51,7 +51,8 @@ class SQLGenerator:
         context: str | None = None,
         previous_attempt: str | None = None,
         error_feedback: str | None = None,
-    ) -> str:
+        return_tokens: bool = False,
+    ) -> str | tuple[str, int | None]:
         """Generate SQL statement from natural language question.
 
         This method sends the question and database schema to OpenAI's API
@@ -66,7 +67,8 @@ class SQLGenerator:
             error_feedback: Error message from previous attempt (for retry).
 
         Returns:
-            str: Generated SQL query (without trailing semicolon).
+            str | tuple[str, int | None]: Generated SQL query. If `return_tokens=True`,
+            returns `(sql, tokens_used)`.
 
         Raises:
             LLMError: If generation fails or response is invalid.
@@ -149,6 +151,9 @@ class SQLGenerator:
                 details={"content": content},
             )
 
+        tokens_used = response.usage.total_tokens if response.usage else None
+        if return_tokens:
+            return sql, tokens_used
         return sql
 
     def _extract_sql(self, content: str) -> str | None:

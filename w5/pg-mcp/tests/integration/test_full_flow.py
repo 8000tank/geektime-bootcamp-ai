@@ -286,6 +286,9 @@ class TestFullQueryFlow:
             assert isinstance(result, dict)
             assert result.get("success") is False
             assert "error" in result
+            assert result["error"]["code"] == "database_error"
+            assert "tokens_used" in result
+            assert isinstance(result["tokens_used"], int)
 
     @pytest.mark.asyncio
     async def test_empty_result_handling(self):

@@ -5,6 +5,7 @@ of the query processing pipeline: SQL generation, validation, execution, and res
 validation. It implements retry logic, error handling, and request tracking.
 """
 
+import asyncio
 import logging
 import uuid
 from typing import Any
@@ -18,6 +19,7 @@ from pg_mcp.models.errors import (
     ErrorCode,
     LLMError,
     PgMcpError,
+    RateLimitExceededError,
     SchemaLoadError,
     SecurityViolationError,
     SQLParseError,
@@ -31,6 +33,7 @@ from pg_mcp.models.query import (
     ValidationResult,
 )
 from pg_mcp.resilience.circuit_breaker import CircuitBreaker
+from pg_mcp.resilience.rate_limiter import MultiRateLimiter
 from pg_mcp.services.result_validator import ResultValidator
 from pg_mcp.services.sql_executor import SQLExecutor
 from pg_mcp.services.sql_generator import SQLGenerator
@@ -50,7 +53,7 @@ class QueryOrchestrator:
         >>> orchestrator = QueryOrchestrator(
         ...     sql_generator=generator,
         ...     sql_validator=validator,
-        ...     sql_executor=executor,
+        ...     sql_executors={"mydb": executor},
         ...     result_validator=result_validator,
         ...     schema_cache=cache,
         ...     pools={"mydb": pool},
@@ -63,37 +66,52 @@ class QueryOrchestrator:
         ... ))
     """
 
+    _LLM_RATE_LIMIT_TIMEOUT_SECONDS = 0.05
+
     def __init__(
         self,
         sql_generator: SQLGenerator,
         sql_validator: SQLValidator,
-        sql_executor: SQLExecutor,
         result_validator: ResultValidator,
         schema_cache: SchemaCache,
         pools: dict[str, Pool],
         resilience_config: ResilienceConfig,
         validation_config: ValidationConfig,
+        sql_executor: SQLExecutor | None = None,
+        sql_executors: dict[str, SQLExecutor] | None = None,
+        rate_limiter: MultiRateLimiter | None = None,
     ) -> None:
         """Initialize query orchestrator.
 
         Args:
             sql_generator: SQL generation service.
             sql_validator: SQL validation service.
-            sql_executor: SQL execution service.
+            sql_executor: SQL execution service (backward compatibility fallback).
+            sql_executors: SQL execution services keyed by database name.
             result_validator: Result validation service.
             schema_cache: Schema cache instance.
             pools: Dictionary mapping database names to connection pools.
             resilience_config: Resilience configuration for retries and circuit breaker.
             validation_config: Validation configuration including thresholds.
+            rate_limiter: Optional multi-rate limiter for query and LLM operations.
         """
         self.sql_generator = sql_generator
         self.sql_validator = sql_validator
-        self.sql_executor = sql_executor
         self.result_validator = result_validator
         self.schema_cache = schema_cache
         self.pools = pools
         self.resilience_config = resilience_config
         self.validation_config = validation_config
+        self.rate_limiter = rate_limiter
+
+        # Prefer per-database executors. For legacy callers that only provide
+        # a single executor, reuse it for all configured databases.
+        if sql_executors is not None:
+            self.sql_executors = sql_executors
+        elif sql_executor is not None:
+            self.sql_executors = dict.fromkeys(pools, sql_executor)
+        else:
+            raise ValueError("Either sql_executors or sql_executor must be provided")
 
         # Create circuit breaker for LLM calls
         self.circuit_breaker = CircuitBreaker(
@@ -195,7 +213,17 @@ class QueryOrchestrator:
             logger.debug("Executing SQL", extra={"request_id": request_id})
             start_time = self._get_current_time_ms()
 
-            results, total_count = await self.sql_executor.execute(generated_sql)
+            executor = self.sql_executors.get(database_name)
+            if executor is None:
+                raise DatabaseError(
+                    message=f"No SQL executor available for database '{database_name}'",
+                    details={
+                        "database": database_name,
+                        "available_executors": list(self.sql_executors.keys()),
+                    },
+                )
+
+            results, total_count = await executor.execute(generated_sql)
 
             execution_time_ms = self._get_current_time_ms() - start_time
             logger.info(
@@ -208,12 +236,13 @@ class QueryOrchestrator:
             )
 
             # Step 6: Validate results (non-blocking, failures don't fail the request)
-            result_confidence = await self._validate_results_safely(
+            result_confidence, validation_tokens = await self._validate_results_safely(
                 question=request.question,
                 sql=generated_sql,
                 results=results,
                 row_count=total_count,
                 request_id=request_id,
+                return_tokens=True,
             )
 
             # Step 7: Build successful response
@@ -231,7 +260,7 @@ class QueryOrchestrator:
                 data=query_result,
                 error=None,
                 confidence=result_confidence,
-                tokens_used=tokens_used,
+                tokens_used=(tokens_used or 0) + validation_tokens,
             )
 
         except PgMcpError as e:
@@ -386,15 +415,30 @@ class QueryOrchestrator:
                 )
 
                 # Generate SQL
-                generated_sql = await self.sql_generator.generate(
-                    question=question,
-                    schema=schema,
-                    previous_attempt=previous_sql,
-                    error_feedback=error_feedback,
-                )
-
-                # Note: tokens_used would come from OpenAI response metadata if available
-                # For now, we don't extract it, but it can be added later
+                if self.rate_limiter is not None:
+                    async with self.rate_limiter.for_llm(
+                        timeout=self._LLM_RATE_LIMIT_TIMEOUT_SECONDS
+                    ):
+                        generation_result = await self.sql_generator.generate(
+                            question=question,
+                            schema=schema,
+                            previous_attempt=previous_sql,
+                            error_feedback=error_feedback,
+                            return_tokens=True,
+                        )
+                else:
+                    generation_result = await self.sql_generator.generate(
+                        question=question,
+                        schema=schema,
+                        previous_attempt=previous_sql,
+                        error_feedback=error_feedback,
+                        return_tokens=True,
+                    )
+                if isinstance(generation_result, tuple):
+                    generated_sql, tokens_used = generation_result
+                else:
+                    generated_sql = generation_result
+                    tokens_used = None
 
                 logger.debug(
                     "SQL generated",
@@ -420,6 +464,10 @@ class QueryOrchestrator:
                         )
                         previous_sql = generated_sql
                         error_feedback = str(validation_error)
+                        delay = self.resilience_config.retry_delay * (
+                            self.resilience_config.backoff_factor**attempt
+                        )
+                        await asyncio.sleep(delay)
                         continue
                     else:
                         # Out of retries, record failure and raise
@@ -455,6 +503,11 @@ class QueryOrchestrator:
 
                 return generated_sql, validation_result, tokens_used
 
+            except TimeoutError as e:
+                raise RateLimitExceededError(
+                    message="LLM rate limit exceeded, please retry later",
+                    details={"retry_after_seconds": 1},
+                ) from e
             except (LLMError, SecurityViolationError, SQLParseError):
                 # Re-raise known errors
                 raise
@@ -484,7 +537,8 @@ class QueryOrchestrator:
         results: list[dict[str, Any]],
         row_count: int,
         request_id: str,
-    ) -> int:
+        return_tokens: bool = False,
+    ) -> int | tuple[int, int]:
         """Validate query results with error handling (non-blocking).
 
         This method attempts to validate results using LLM, but failures
@@ -498,7 +552,8 @@ class QueryOrchestrator:
             request_id: Request ID for tracking.
 
         Returns:
-            int: Confidence score (0-100). Returns 100 if validation disabled/fails.
+            int | tuple[int, int]: Confidence score; if `return_tokens=True`,
+            returns `(confidence, tokens_used)`.
 
         Example:
             >>> confidence = await orchestrator._validate_results_safely(
@@ -510,7 +565,7 @@ class QueryOrchestrator:
             ... )
         """
         if not self.validation_config.enabled:
-            return 100
+            return (100, 0) if return_tokens else 100
 
         try:
             logger.debug(
@@ -518,12 +573,28 @@ class QueryOrchestrator:
                 extra={"request_id": request_id},
             )
 
-            validation_result = await self.result_validator.validate(
-                question=question,
-                sql=sql,
-                results=results,
-                row_count=row_count,
-            )
+            if self.rate_limiter is not None:
+                async with self.rate_limiter.for_llm(timeout=self._LLM_RATE_LIMIT_TIMEOUT_SECONDS):
+                    validation_response = await self.result_validator.validate(
+                        question=question,
+                        sql=sql,
+                        results=results,
+                        row_count=row_count,
+                        return_tokens=True,
+                    )
+            else:
+                validation_response = await self.result_validator.validate(
+                    question=question,
+                    sql=sql,
+                    results=results,
+                    row_count=row_count,
+                    return_tokens=True,
+                )
+            if isinstance(validation_response, tuple):
+                validation_result, validation_tokens = validation_response
+            else:
+                validation_result = validation_response
+                validation_tokens = 0
 
             logger.info(
                 "Result validation completed",
@@ -534,8 +605,16 @@ class QueryOrchestrator:
                 },
             )
 
+            if return_tokens:
+                return validation_result.confidence, validation_tokens or 0
             return validation_result.confidence
 
+        except TimeoutError:
+            logger.warning(
+                "Result validation skipped due to LLM rate limiting",
+                extra={"request_id": request_id},
+            )
+            return (100, 0) if return_tokens else 100
         except Exception as e:
             # Log but don't fail the query
             logger.warning(
@@ -545,7 +624,8 @@ class QueryOrchestrator:
                     "error": str(e),
                 },
             )
-            return 100  # Default to high confidence if validation fails
+            # Default to high confidence if validation fails.
+            return (100, 0) if return_tokens else 100
 
     @staticmethod
     def _get_current_time_ms() -> float:

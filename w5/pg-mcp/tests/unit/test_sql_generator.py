@@ -305,6 +305,29 @@ class TestSQLGenerator:
             assert result == "SELECT * FROM users;"
 
     @pytest.mark.asyncio
+    async def test_generate_returns_tokens_when_requested(
+        self, generator: SQLGenerator, mock_schema: DatabaseSchema
+    ) -> None:
+        """Should return `(sql, tokens)` when return_tokens=True."""
+        mock_response = MagicMock()
+        mock_response.choices = [
+            MagicMock(message=MagicMock(content="```sql\nSELECT * FROM users;\n```"))
+        ]
+        mock_response.usage = MagicMock(total_tokens=123)
+
+        with patch.object(
+            generator.client.chat.completions, "create", new=AsyncMock(return_value=mock_response)
+        ):
+            sql, tokens = await generator.generate(
+                "列出所有用户",
+                mock_schema,
+                return_tokens=True,
+            )
+
+        assert sql == "SELECT * FROM users;"
+        assert tokens == 123
+
+    @pytest.mark.asyncio
     async def test_generate_with_context(
         self, generator: SQLGenerator, mock_schema: DatabaseSchema
     ) -> None:

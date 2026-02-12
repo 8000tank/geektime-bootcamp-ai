@@ -158,8 +158,11 @@ class TestSecurityConfig:
         """Test default configuration values."""
         config = SecurityConfig()
         assert config.allow_write_operations is False
+        assert config.allow_explain is False
         assert config.max_rows == 10000
         assert config.max_execution_time == 30.0
+        assert config.blocked_tables == []
+        assert config.blocked_columns == []
         assert "pg_sleep" in config.blocked_functions
         assert "pg_read_file" in config.blocked_functions
 
@@ -178,6 +181,16 @@ class TestSecurityConfig:
         assert "func1" in config.blocked_functions
         assert "func2" in config.blocked_functions
         assert "func3" in config.blocked_functions
+
+    def test_parse_blocked_tables_from_string(self) -> None:
+        """Test parsing blocked tables from comma-separated string."""
+        config = SecurityConfig(blocked_tables="users, audit_logs")  # type: ignore[arg-type]
+        assert config.blocked_tables == ["users", "audit_logs"]
+
+    def test_parse_blocked_columns_from_string(self) -> None:
+        """Test parsing blocked columns from comma-separated string."""
+        config = SecurityConfig(blocked_columns="users.password, ssn")  # type: ignore[arg-type]
+        assert config.blocked_columns == ["users.password", "ssn"]
 
     def test_allow_write_operations(self) -> None:
         """Test enabling write operations."""
@@ -259,6 +272,8 @@ class TestResilienceConfig:
         assert config.max_retries == 3
         assert config.retry_delay == 1.0
         assert config.backoff_factor == 2.0
+        assert config.query_limit == 10
+        assert config.llm_limit == 5
         assert config.circuit_breaker_threshold == 5
         assert config.circuit_breaker_timeout == 60.0
 
@@ -268,10 +283,14 @@ class TestResilienceConfig:
             max_retries=5,
             retry_delay=2.0,
             backoff_factor=3.0,
+            query_limit=20,
+            llm_limit=8,
         )
         assert config.max_retries == 5
         assert config.retry_delay == 2.0
         assert config.backoff_factor == 3.0
+        assert config.query_limit == 20
+        assert config.llm_limit == 8
 
     def test_invalid_values(self) -> None:
         """Test invalid values are rejected."""
@@ -280,6 +299,12 @@ class TestResilienceConfig:
 
         with pytest.raises(ValidationError):
             ResilienceConfig(backoff_factor=0.5)
+
+        with pytest.raises(ValidationError):
+            ResilienceConfig(query_limit=0)
+
+        with pytest.raises(ValidationError):
+            ResilienceConfig(llm_limit=0)
 
 
 class TestObservabilityConfig:

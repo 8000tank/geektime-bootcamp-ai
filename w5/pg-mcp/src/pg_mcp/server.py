@@ -27,6 +27,7 @@ from pg_mcp.services.sql_generator import SQLGenerator
 from pg_mcp.services.sql_validator import SQLValidator
 
 logger = get_logger(__name__)
+QUERY_RATE_LIMIT_TIMEOUT_SECONDS = 0.05
 
 # Global state for lifespan management
 _settings: Settings | None = None
@@ -152,9 +153,9 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         # SQL Validator
         sql_validator = SQLValidator(
             config=_settings.security,
-            blocked_tables=None,  # Can be configured via settings if needed
-            blocked_columns=None,  # Can be configured via settings if needed
-            allow_explain=False,
+            blocked_tables=_settings.security.blocked_tables,
+            blocked_columns=_settings.security.blocked_columns,
+            allow_explain=_settings.security.allow_explain,
         )
 
         # SQL Executor (create one per database)
@@ -185,8 +186,8 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
 
         # Rate Limiter
         _rate_limiter = MultiRateLimiter(
-            query_limit=10,  # Can be made configurable
-            llm_limit=5,  # Can be made configurable
+            query_limit=_settings.resilience.query_limit,
+            llm_limit=_settings.resilience.llm_limit,
         )
 
         # 8. Create QueryOrchestrator
@@ -194,12 +195,13 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         _orchestrator = QueryOrchestrator(
             sql_generator=sql_generator,
             sql_validator=sql_validator,
-            sql_executor=sql_executors[_settings.database.name],  # Use primary executor
             result_validator=result_validator,
             schema_cache=_schema_cache,
             pools=_pools,
             resilience_config=_settings.resilience,
             validation_config=_settings.validation,
+            sql_executors=sql_executors,
+            rate_limiter=_rate_limiter,
         )
 
         logger.info("PostgreSQL MCP Server initialization complete!")
@@ -228,7 +230,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
                     timeout=3.0
                 )
                 logger.info("Schema auto-refresh stopped")
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Schema auto-refresh stop timed out")
             except Exception as e:
                 logger.warning(f"Error stopping schema auto-refresh: {e!s}")
@@ -312,7 +314,7 @@ async def query(
         - Row count limits prevent memory exhaustion
         - All queries run in read-only transactions
     """
-    global _orchestrator
+    global _orchestrator, _rate_limiter
 
     if _orchestrator is None:
         return {
@@ -322,6 +324,7 @@ async def query(
                 "message": "Server not initialized properly",
                 "details": None,
             },
+            "tokens_used": 0,
         }
 
     # Validate return_type
@@ -333,6 +336,7 @@ async def query(
                 "message": f"Invalid return_type: '{return_type}'. Must be 'sql' or 'result'.",
                 "details": {"return_type": return_type},
             },
+            "tokens_used": 0,
         }
 
     # Build request
@@ -350,16 +354,31 @@ async def query(
                 "message": f"Invalid request parameters: {e!s}",
                 "details": {"error": str(e)},
             },
+            "tokens_used": 0,
         }
 
     # Execute query through orchestrator
     try:
-        response: QueryResponse = await _orchestrator.execute_query(request)
+        if _rate_limiter is not None:
+            async with _rate_limiter.for_queries(timeout=QUERY_RATE_LIMIT_TIMEOUT_SECONDS):
+                response: QueryResponse = await _orchestrator.execute_query(request)
+        else:
+            response = await _orchestrator.execute_query(request)
         result = response.to_dict()
         # Ensure tokens_used is always present
         if "tokens_used" not in result:
             result["tokens_used"] = 0
         return result
+    except TimeoutError:
+        return {
+            "success": False,
+            "error": {
+                "code": "RATE_LIMITED",
+                "message": "Too many concurrent requests. Please retry later.",
+                "details": {"retry_after_seconds": 1},
+            },
+            "tokens_used": 0,
+        }
     except Exception as e:
         logger.exception("Unexpected error in query tool")
         return {

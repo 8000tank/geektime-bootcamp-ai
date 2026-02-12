@@ -78,6 +78,12 @@ class SecurityConfig(BaseSettings):
     allow_write_operations: bool = Field(
         default=False, description="Allow write operations (INSERT, UPDATE, DELETE)"
     )
+    allow_ddl_operations: bool = Field(
+        default=False, description="Allow DDL operations (CREATE, ALTER, DROP)"
+    )
+    allow_transaction_control: bool = Field(
+        default=False, description="Allow transaction control (BEGIN, COMMIT, ROLLBACK)"
+    )
     blocked_functions: list[str] = Field(
         default_factory=lambda: [
             "pg_sleep",
@@ -88,6 +94,17 @@ class SecurityConfig(BaseSettings):
         ],
         description="List of blocked PostgreSQL functions",
     )
+    blocked_schemas: list[str] = Field(
+        default_factory=lambda: ["pg_catalog", "information_schema"],
+        description="List of schemas that cannot be accessed",
+    )
+    blocked_tables: list[str] = Field(
+        default_factory=list, description="List of tables that cannot be accessed"
+    )
+    blocked_columns: list[str] = Field(
+        default_factory=list, description="List of columns that cannot be accessed"
+    )
+    allow_explain: bool = Field(default=False, description="Allow EXPLAIN statements")
     max_rows: int = Field(default=10000, ge=1, le=100000, description="Maximum rows to return")
     max_execution_time: float = Field(
         default=30.0, ge=1.0, le=300.0, description="Maximum query execution time in seconds"
@@ -105,6 +122,30 @@ class SecurityConfig(BaseSettings):
         """Parse comma-separated string or list."""
         if isinstance(v, str):
             return [f.strip() for f in v.split(",") if f.strip()]
+        return v
+
+    @field_validator("blocked_schemas", mode="before")
+    @classmethod
+    def parse_blocked_schemas(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated string or list."""
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
+
+    @field_validator("blocked_tables", mode="before")
+    @classmethod
+    def parse_blocked_tables(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated blocked tables from string or list."""
+        if isinstance(v, str):
+            return [t.strip() for t in v.split(",") if t.strip()]
+        return v
+
+    @field_validator("blocked_columns", mode="before")
+    @classmethod
+    def parse_blocked_columns(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated blocked columns from string or list."""
+        if isinstance(v, str):
+            return [c.strip() for c in v.split(",") if c.strip()]
         return v
 
 
@@ -157,6 +198,8 @@ class ResilienceConfig(BaseSettings):
     backoff_factor: float = Field(
         default=2.0, ge=1.0, le=10.0, description="Exponential backoff factor"
     )
+    query_limit: int = Field(default=10, ge=1, le=1000, description="Query concurrency limit")
+    llm_limit: int = Field(default=5, ge=1, le=1000, description="LLM concurrency limit")
     circuit_breaker_threshold: int = Field(
         default=5, ge=1, le=100, description="Failures before circuit opens"
     )

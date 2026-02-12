@@ -17,7 +17,13 @@ from pg_mcp.models.errors import (
     SecurityViolationError,
     SQLParseError,
 )
-from pg_mcp.models.query import QueryRequest, QueryResponse, QueryResult, ReturnType
+from pg_mcp.models.query import (
+    ErrorDetail as QueryErrorDetail,
+    QueryRequest,
+    QueryResponse,
+    QueryResult,
+    ReturnType,
+)
 from pg_mcp.models.schema import (
     ColumnInfo,
     DatabaseSchema,
@@ -369,6 +375,29 @@ class TestQueryResponse:
         assert response.success
         assert response.generated_sql is not None
         assert response.data is None
+
+    def test_to_dict_always_includes_tokens_used(self) -> None:
+        """tokens_used should always be present in serialized response."""
+        response = QueryResponse(
+            success=True,
+            generated_sql="SELECT 1",
+            confidence=100,
+        )
+        result = response.to_dict()
+        assert "tokens_used" in result
+        assert result["tokens_used"] == 0
+
+    def test_to_dict_preserves_non_null_fields(self) -> None:
+        """to_dict should preserve fields needed by MCP response payload."""
+        response = QueryResponse(
+            success=False,
+            error=QueryErrorDetail(code="TEST_ERROR", message="test"),
+            tokens_used=3,
+        )
+        result = response.to_dict()
+        assert result["success"] is False
+        assert result["tokens_used"] == 3
+        assert result["error"] is not None
 
 
 class TestErrorModels:
