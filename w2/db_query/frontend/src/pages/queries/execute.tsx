@@ -8,6 +8,8 @@ import { apiClient } from "../../services/api";
 import { QueryResult, QueryHistoryEntry, QueryInput } from "../../types/query";
 import { SqlEditor } from "../../components/SqlEditor";
 import { ResultTable } from "../../components/ResultTable";
+import { ExportButton } from "../../components/ExportButton";
+import { ExecuteAndExportButton } from "../../components/ExecuteAndExportButton";
 
 const { Text } = Typography;
 
@@ -90,6 +92,19 @@ export const QueryExecute: React.FC = () => {
             >
               Execute
             </Button>
+            <ExportButton
+              databaseName={databaseName || ""}
+              result={result}
+            />
+            <ExecuteAndExportButton
+              databaseName={databaseName || ""}
+              sql={sql}
+              onResult={(r) => {
+                setResult(r);
+                setError(null);
+              }}
+              onSuccess={loadHistory}
+            />
             <Button
               icon={<ReloadOutlined />}
               onClick={loadHistory}

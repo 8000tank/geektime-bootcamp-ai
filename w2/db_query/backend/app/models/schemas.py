@@ -113,6 +113,30 @@ class GeneratedSqlResponse(BaseModel):
     explanation: str
 
 
+# Export Schemas
+class ExportSnapshotRequest(BaseModel):
+    """导出快照请求模型"""
+
+    format: Literal["csv", "json"] = Field(..., description="导出格式")
+    sql: str = Field(..., description="已执行并展示的 SQL")
+    result: QueryResult = Field(..., description="当前页面查询结果快照")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "format": "csv",
+                "sql": "SELECT * FROM users LIMIT 1000",
+                "result": {
+                    "columns": [{"name": "id", "dataType": "integer"}],
+                    "rows": [{"id": 1}],
+                    "rowCount": 1,
+                    "executionTimeMs": 120,
+                    "sql": "SELECT * FROM users LIMIT 1000"
+                }
+            }
+        }
+
+
 # Error Schema
 class ErrorResponse(BaseModel):
     """Error response schema."""

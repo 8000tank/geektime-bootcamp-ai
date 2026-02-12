@@ -13,6 +13,7 @@ from app.models.schemas import (
     QueryHistoryEntry,
     NaturalLanguageInput,
     GeneratedSqlResponse,
+    ExportSnapshotRequest,
 )
 from app.services.query_wrapper import execute_query_with_service
 from app.services.query import get_query_history
@@ -180,3 +181,77 @@ async def natural_language_to_sql(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate SQL: {str(e)}",
         )
+
+
+@router.post("/{name}/export/snapshot")
+async def export_snapshot(
+    name: str,
+    request: ExportSnapshotRequest,
+    session: Session = Depends(get_session),
+):
+    """
+    导出当前页面查询结果快照
+
+    Args:
+        name: 数据库名称
+        request: 导出请求（包含格式、SQL 和结果快照）
+        session: 数据库会话
+
+    Returns:
+        文件下载响应
+    """
+    from fastapi.responses import StreamingResponse, Response
+    from app.services.export_service import ExportService
+    from app.services.query import save_query_history
+
+    # 验证数据库连接存在
+    statement = select(DatabaseConnection).where(DatabaseConnection.name == name)
+    connection = session.exec(statement).first()
+
+    if not connection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Database connection '{name}' not found",
+        )
+
+    try:
+        # 生成文件名
+        filename = ExportService.generate_filename(name, request.format)
+
+        # 记录导出历史
+        await save_query_history(
+            session=session,
+            database_name=name,
+            sql=request.sql,
+            row_count=request.result.rowCount,
+            execution_time_ms=request.result.executionTimeMs,
+            success=True,
+            error_message=None,
+            query_source=QuerySource.EXPORT,
+        )
+
+        # 根据格式导出
+        if request.format == "csv":
+            return StreamingResponse(
+                ExportService.export_to_csv(request.result),
+                media_type="text/csv; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-cache",
+                },
+            )
+        elif request.format == "json":
+            json_content = ExportService.export_to_json(request.result)
+            return Response(
+                content=json_content,
+                media_type="application/json; charset=utf-8",
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-cache",
+                },
+            )
+        else:
+            raise HTTPException(status_code=400, detail="不支持的导出格式")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
